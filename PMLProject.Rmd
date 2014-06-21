@@ -1,0 +1,106 @@
+# Practical Machine Learning Course Project
+_____________________________________________
+
+## Introduction
+
+There are many opportunities to measure human activities due to the availability of low cost accelerometers. We will examine whether we can determine the weight lifting form using the accelerometer data collected.
+
+## Exploring and preparing the data
+
+```{r warning=FALSE}
+#set working directory
+setwd("D:/CURSOS/DATA SCIENCE/8-Practical Machine Learning/Course project")
+
+library(caret)
+
+# Change to data directory
+setwd("./datasets/")
+
+# Load datasets
+trainingDB <- read.csv("pml-training.csv", header=TRUE, sep=",",stringsAsFactors=FALSE)
+testingDB <- read.csv("pml-testing.csv", header=TRUE, sep=",",stringsAsFactors=FALSE)
+```
+
+We choose random selection without replacement to split the data set into a training set (70%) and a cross validation set (30%).
+Set seed for reproducibility pourposes
+
+```{r warning=FALSE}
+set.seed(1535)
+trainingIndex <- createDataPartition(trainingDB$classe, list=FALSE, p=.7)
+training = trainingDB[trainingIndex,]
+testing = trainingDB[-trainingIndex,]
+```
+
+Remove indicators with near zero variance.
+
+```{r warning=FALSE}
+nzv <- nearZeroVar(training)
+training <- training[-nzv]
+testing <- testing[-nzv]
+testingDB <- testingDB[-nzv]
+```
+
+We filter columns to include only numeric features and outcome. 
+
+```{r warning=FALSE}
+num_features = which(lapply(training,class) %in% c('numeric') )
+```
+
+We impute missing values in our training data.
+
+```{r warning=FALSE}
+Model <- preProcess(training[,num_features], method=c('knnImpute'))
+pretrain <- cbind(training$classe, predict(Model, training[,num_features]))
+pretest <- cbind(testing$classe, predict(Model, testing[,num_features]))
+prtesting <- predict(Model, testingDB[,num_features])
+
+#Fix label on classe
+names(pretrain)[1] <- 'classe'
+names(pretest)[1] <- 'classe'
+```
+
+## Random Forest model
+
+We build a random forest model using the numerical variables provided. 
+
+```{r warning=FALSE}
+library(randomForest)
+modelRF <- randomForest(classe ~ ., pretrain, ntree=500, mtry=32)
+```
+
+### Cross Validation
+
+#### In-sample accuracy
+```{r warning=FALSE}
+train_pred <- predict(modelRF, pretrain)
+print(confusionMatrix(train_pred, pretrain$classe))
+```
+The in-sample accuracy is 100%. This indicates that the model does not suffer from bias.
+
+#### Out-of-sample accuracy
+```{r warning=FALSE}
+test_pred <- predict(modelRF, pretest)
+```
+
+```{r warning=FALSE}
+print(confusionMatrix(test_pred, pretest$classe))
+```
+
+The cross validation accuracy is greater than 99%.
+Based on the lower bound of the confidence interval we would expect to achieve a 98.7% classification accuracy on new data provided.
+
+
+### Evaluating model performance in the test set
+
+We apply this model to the test data provided and we get 100% classification accuracy on the twenty test observations.
+```{r warning=FALSE}
+answers <- predict(modelRF, prtesting)
+answers
+```
+
+### Conclusions
+Our model provides good accuracy to predict the twenty test cases.
+We are able to provide very good prediction of weight lifting style as measured by accelerometers.
+
+
+
